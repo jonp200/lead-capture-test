@@ -23,13 +23,21 @@ func Handler(store *Store, assets fs.FS, logger *slog.Logger) http.Handler {
 	router.POST("/api/leads", store.addHTTP)
 	router.POST("/api/leads/import", store.importHTTP)
 	files := http.FileServer(http.FS(assets))
+	serveFrontend := func(ctx *gin.Context) {
+		ctx.Header("X-Content-Type-Options", "nosniff")
+		files.ServeHTTP(ctx.Writer, ctx.Request)
+	}
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		router.Handle(method, "/", serveFrontend)
+		router.Handle(method, "/index.html", serveFrontend)
+		router.Handle(method, "/assets/*filepath", serveFrontend)
+	}
 	router.NoRoute(func(ctx *gin.Context) {
 		if strings.HasPrefix(ctx.Request.URL.Path, "/api/") {
 			ctx.JSON(http.StatusNotFound, gin.H{errorKey: "endpoint not found"})
 			return
 		}
-		ctx.Header("X-Content-Type-Options", "nosniff")
-		files.ServeHTTP(ctx.Writer, ctx.Request)
+		http.NotFound(ctx.Writer, ctx.Request)
 	})
 	return router
 }

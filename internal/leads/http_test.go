@@ -38,7 +38,10 @@ func call(handler http.Handler, method, path, body string) *httptest.ResponseRec
 
 func TestAPI(t *testing.T) {
 	store := openStore(t)
-	handler := leads.Handler(store, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("frontend")}}, testLogger())
+	handler := leads.Handler(store, fstest.MapFS{
+		"index.html":    &fstest.MapFile{Data: []byte("frontend")},
+		"assets/app.js": &fstest.MapFile{Data: []byte("console.log('frontend')")},
+	}, testLogger())
 	response := call(handler, http.MethodGet, "/api/leads", "")
 	if response.Code != http.StatusOK || response.Body.String() != "[]" {
 		t.Fatal("empty list must be []")
@@ -99,6 +102,19 @@ func TestAPI(t *testing.T) {
 	}
 	if result := call(handler, http.MethodGet, "/api/missing", ""); result.Code != http.StatusNotFound {
 		t.Fatal("unknown API should return 404")
+	}
+	if result := call(handler, http.MethodGet, "/assets/app.js", ""); result.Code != http.StatusOK ||
+		result.Body.String() != "console.log('frontend')" ||
+		result.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatal("frontend asset not served")
+	}
+	if result := call(handler, http.MethodHead, "/", ""); result.Code != http.StatusOK || result.Body.Len() != 0 {
+		t.Fatal("frontend HEAD should succeed without a body")
+	}
+	for _, path := range []string{"/missing", "/assets/missing.js"} {
+		if result := call(handler, http.MethodGet, path, ""); result.Code != http.StatusNotFound {
+			t.Errorf("missing path %s should return 404", path)
+		}
 	}
 }
 
