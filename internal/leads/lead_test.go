@@ -14,7 +14,7 @@ func validLead() leads.Lead {
 		LastName:      "Martin",
 		Email:         "zoe@example.com",
 		FinanceAmount: 38500.5,
-		State:         "QLD",
+		State:         leads.StateQLD,
 	}
 }
 
@@ -103,11 +103,26 @@ func TestValidation(t *testing.T) {
 
 func TestNormalization(t *testing.T) {
 	t.Parallel()
-	for _, state := range []string{"ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA", "Victoria"} {
+	for input, expected := range map[string]string{
+		"ACT": leads.StateACT, "NSW": leads.StateNSW, "NT": leads.StateNT,
+		"QLD": leads.StateQLD, "SA": leads.StateSA, "TAS": leads.StateTAS,
+		"VIC": leads.StateVIC, "WA": leads.StateWA,
+		" Australian Capital Territory ": leads.StateACT,
+		" new south wales ":              leads.StateNSW,
+		" Northern Territory ":           leads.StateNT,
+		" Queensland ":                   leads.StateQLD,
+		" South Australia ":              leads.StateSA,
+		" Tasmania ":                     leads.StateTAS,
+		" Victoria ":                     leads.StateVIC,
+		" Western Australia ":            leads.StateWA,
+	} {
 		lead := validLead()
-		lead.State = state
+		lead.State = input
 		lead.Email = " ZOE@EXAMPLE.COM "
 		lead.Normalize()
+		if lead.State != expected {
+			t.Errorf("Normalize state %q = %q, want %q", input, lead.State, expected)
+		}
 		if lead.Email != "zoe@example.com" || len(lead.Validate(time.Now())) != 0 {
 			t.Fatal("normalization failed")
 		}

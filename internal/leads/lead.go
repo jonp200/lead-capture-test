@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+// Valid Australian state and territory codes.
+const (
+	StateNSW = "NSW"
+	StateVIC = "VIC"
+	StateQLD = "QLD"
+	StateSA  = "SA"
+	StateWA  = "WA"
+	StateTAS = "TAS"
+	StateNT  = "NT"
+	StateACT = "ACT"
+)
+
 // Vehicle contains the optional vehicle details.
 type Vehicle struct {
 	Make  string `json:"make"`
@@ -35,9 +47,9 @@ func (lead *Lead) Normalize() {
 	lead.Email = strings.ToLower(strings.TrimSpace(lead.Email))
 	lead.State = strings.ToUpper(strings.TrimSpace(lead.State))
 	aliases := map[string]string{
-		"NEW SOUTH WALES": "NSW", "VICTORIA": "VIC", "QUEENSLAND": "QLD",
-		"SOUTH AUSTRALIA": "SA", "WESTERN AUSTRALIA": "WA", "TASMANIA": "TAS",
-		"NORTHERN TERRITORY": "NT", "AUSTRALIAN CAPITAL TERRITORY": "ACT",
+		"NEW SOUTH WALES": StateNSW, "VICTORIA": StateVIC, "QUEENSLAND": StateQLD,
+		"SOUTH AUSTRALIA": StateSA, "WESTERN AUSTRALIA": StateWA, "TASMANIA": StateTAS,
+		"NORTHERN TERRITORY": StateNT, "AUSTRALIAN CAPITAL TERRITORY": StateACT,
 	}
 	if state, ok := aliases[lead.State]; ok {
 		lead.State = state
@@ -71,7 +83,7 @@ func (lead *Lead) Validate(now time.Time) map[string]string {
 		errors["salary"] = "must be greater than 0"
 	}
 	switch lead.State {
-	case "NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT":
+	case StateNSW, StateVIC, StateQLD, StateSA, StateWA, StateTAS, StateNT, StateACT:
 	default:
 		errors["state"] = "must be a valid Australian state or territory"
 	}

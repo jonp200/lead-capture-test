@@ -22,7 +22,7 @@ Partners send us leads as CSV files. Build a small app that imports and stores l
             └── LeadForm.vue     # Empty: add a lead
 ```
 
-There is no Go code yet, and no TypeScript types or API calls. You write those.
+~~There is no Go code yet, and no TypeScript types or API calls. You write those.~~
 
 **Prerequisites:** Go 1.27+, Node 22.18+ (or 24.12+), make.
 
