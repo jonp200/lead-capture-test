@@ -111,6 +111,25 @@ make test      # run the Go tests
 - `409` on a duplicate email.
 - Sorting.
 
+## Implementation
+
+The API and Vue interface are implemented. See [NOTES.md](NOTES.md) for decisions,
+verification, limitations and Windows commands without GNU make.
+
+- `GET /api/leads` returns the saved leads, newest first.
+- `POST /api/leads` accepts the lead JSON contract above; duplicate email returns
+  `409` with `errors.email`.
+- `POST /api/leads/import` accepts a raw `text/csv` request body (maximum 10 MiB)
+  and returns `{ "imported": 36, "rejected": [{ "line": 25, "errors": { "state": "..." } }] }`.
+  Earlier accepted rows remain saved if an import stops; an error response includes
+  `result` with that progress. Correct rejected rows in the source file and upload again.
+
+The browser provides CSV upload, rejection review, adding leads, search, state filtering
+and sorting. By default the server listens on `127.0.0.1:8080` and saves to `leads.db`.
+Override these with `LEADS_ADDR` and `LEADS_DB`. Build the frontend before direct Go
+commands so `web/dist` exists for embedding. The compiled binary needs no external
+frontend files.
+
 ## Submitting
 
 Push your work to a repository we can read (or send us a zip), including `NOTES.md`. Please commit as you go rather than in one final commit: we're interested in how you got there.

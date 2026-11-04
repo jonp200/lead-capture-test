@@ -33,6 +33,9 @@ issues:
   max-same-issues: 50
 
 formatters:
+  exclusions:
+    paths:
+      - ^web/node_modules/
   enable:
     - goimports # checks if the code and import statements are formatted according to the 'goimports' command
     - golines # checks if code is formatted, and fixes long lines
@@ -451,6 +454,8 @@ linters:
       os-temp-dir: true
 
   exclusions:
+    paths:
+      - ^web/node_modules/
     # Log a warning if an exclusion rule is unused.
     # Default: false
     warn-unused: true

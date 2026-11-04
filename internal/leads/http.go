@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const errorKey = "error"
+
 // Handler serves the API and compiled frontend without logging request data or PII.
 func Handler(store *Store, assets fs.FS) http.Handler {
 	router := gin.New()
@@ -22,7 +24,7 @@ func Handler(store *Store, assets fs.FS) http.Handler {
 	files := http.FileServer(http.FS(assets))
 	router.NoRoute(func(ctx *gin.Context) {
 		if strings.HasPrefix(ctx.Request.URL.Path, "/api/") {
-			ctx.JSON(http.StatusNotFound, gin.H{"error": "endpoint not found"})
+			ctx.JSON(http.StatusNotFound, gin.H{errorKey: "endpoint not found"})
 			return
 		}
 		ctx.Header("X-Content-Type-Options", "nosniff")
@@ -34,7 +36,7 @@ func Handler(store *Store, assets fs.FS) http.Handler {
 func safeRecovery(ctx *gin.Context) {
 	defer func() {
 		if recover() != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{errorKey: "internal server error"})
 		}
 	}()
 	ctx.Header("Cache-Control", "no-store")
@@ -44,7 +46,7 @@ func safeRecovery(ctx *gin.Context) {
 func (store *Store) listHTTP(ctx *gin.Context) {
 	leads, err := store.List(ctx.Request.Context())
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "could not load leads"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{errorKey: "could not load leads"})
 		return
 	}
 	ctx.JSON(http.StatusOK, leads)
@@ -57,12 +59,12 @@ func (store *Store) addHTTP(ctx *gin.Context) {
 	decoder.DisallowUnknownFields()
 	var lead *Lead
 	if err := decoder.Decode(&lead); err != nil || lead == nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "body must be a valid lead JSON object"})
+		ctx.JSON(http.StatusBadRequest, gin.H{errorKey: "body must be a valid lead JSON object"})
 		return
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "body must contain a single JSON object"})
+		ctx.JSON(http.StatusBadRequest, gin.H{errorKey: "body must contain a single JSON object"})
 		return
 	}
 	lead.Normalize()
@@ -76,7 +78,7 @@ func (store *Store) addHTTP(ctx *gin.Context) {
 		return
 	}
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "could not save lead"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{errorKey: "could not save lead"})
 		return
 	}
 	ctx.JSON(http.StatusCreated, saved)
@@ -88,7 +90,10 @@ func (store *Store) importHTTP(ctx *gin.Context) {
 	result, err := store.Import(ctx.Request.Context(), ctx.Request.Body)
 	if err != nil {
 		// Include progress because earlier valid rows remain committed.
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "import stopped; check headers, CSV format, and the 10 MB limit", "result": result})
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{errorKey: "import stopped; check headers, CSV format, and the 10 MB limit", "result": result},
+		)
 		return
 	}
 	ctx.JSON(http.StatusOK, result)

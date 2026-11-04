@@ -12,7 +12,7 @@ import (
 )
 
 // ErrDuplicateEmail indicates the unique email constraint was violated.
-var ErrDuplicateEmail = errors.New("email already exists") //nolint:gochecknoglobals // Shared sentinel for errors.Is.
+var ErrDuplicateEmail = errors.New("email already exists")
 
 // Store owns a SQLite connection pool.
 type Store struct{ db *sql.DB }

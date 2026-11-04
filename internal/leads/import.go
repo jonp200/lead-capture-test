@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -43,23 +44,24 @@ func (store *Store) Import(ctx context.Context, input io.Reader) (ImportResult, 
 		if err = ctx.Err(); err != nil {
 			return result, err
 		}
-		line := recordLine(reader, readErr)
 		if readErr != nil {
-			var parseErr *csv.ParseError
-			if !errors.As(readErr, &parseErr) {
+			parseErr, ok := errors.AsType[*csv.ParseError](readErr)
+			if !ok {
 				return result, errors.New("could not read CSV")
 			}
-			result.Rejected = append(result.Rejected, Rejection{Line: line, Errors: map[string]string{"row": "malformed CSV or wrong column count"}})
+			result.Rejected = append(
+				result.Rejected,
+				Rejection{
+					Line:   parseErr.StartLine,
+					Errors: map[string]string{"row": "malformed CSV or wrong column count"},
+				},
+			)
 			continue
 		}
+		line, _ := reader.FieldPos(0)
 		lead, fields := parseRow(row, columns)
-		if len(fields) == 0 {
-			_, err = store.Add(ctx, lead)
-			if errors.Is(err, ErrDuplicateEmail) {
-				fields["email"] = "already exists"
-			} else if err != nil {
-				return result, err
-			}
+		if err = store.saveImported(ctx, lead, fields); err != nil {
+			return result, err
 		}
 		if len(fields) > 0 {
 			result.Rejected = append(result.Rejected, Rejection{Line: line, Errors: fields})
@@ -86,20 +88,29 @@ func csvColumns(header []string) (map[string]int, error) {
 	return columns, nil
 }
 
-func recordLine(reader *csv.Reader, err error) int {
-	var parseErr *csv.ParseError
-	if errors.As(err, &parseErr) {
-		return parseErr.StartLine
+func (store *Store) saveImported(ctx context.Context, lead Lead, fields map[string]string) error {
+	if len(fields) != 0 {
+		return nil
 	}
-	line, _ := reader.FieldPos(0)
-	return line
+	_, err := store.Add(ctx, lead)
+	if errors.Is(err, ErrDuplicateEmail) {
+		fields["email"] = "already exists"
+		return nil
+	}
+	return err
 }
 
 func parseRow(row []string, columns map[string]int) (Lead, map[string]string) {
 	value := func(name string) string { return strings.TrimSpace(row[columns[name]]) }
 	parseErrors := make(map[string]string)
 	finance := csvAmount(value("finance_amount"), "finance_amount", parseErrors)
-	lead := Lead{FirstName: value("first_name"), LastName: value("last_name"), Email: value("email"), State: value("state"), FinanceAmount: finance}
+	lead := Lead{
+		FirstName:     value("first_name"),
+		LastName:      value("last_name"),
+		Email:         value("email"),
+		State:         value("state"),
+		FinanceAmount: finance,
+	}
 	if value("salary") != "" {
 		salary := csvAmount(value("salary"), "salary", parseErrors)
 		lead.Salary = &salary
@@ -116,9 +127,7 @@ func parseRow(row []string, columns map[string]int) (Lead, map[string]string) {
 	lead.Vehicle = vehicle
 	lead.Normalize()
 	fields := lead.Validate(time.Now())
-	for field, message := range parseErrors {
-		fields[field] = message
-	}
+	maps.Copy(fields, parseErrors)
 	return lead, fields
 }
 

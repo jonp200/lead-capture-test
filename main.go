@@ -46,10 +46,11 @@ func run() error {
 }
 
 func importFile(ctx context.Context, store *leads.Store) error {
-	if len(os.Args) != 3 {
+	const importArgCount = 3
+	if len(os.Args) != importArgCount {
 		return errors.New("usage: leads import <file.csv>")
 	}
-	file, err := os.Open(os.Args[2])
+	file, err := os.Open(os.Args[2]) //nolint:gosec // The local CLI intentionally accepts a user-selected file path.
 	if err != nil {
 		return errors.New("could not open CSV file")
 	}
@@ -82,7 +83,7 @@ func serve(ctx context.Context, store *leads.Store) error {
 	go func() {
 		defer close(done)
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), readTimeout)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), readTimeout)
 		defer cancel()
 		if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
 			_ = server.Close()

@@ -1,7 +1,9 @@
 package leads_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -81,5 +83,30 @@ func TestImportUpload(t *testing.T) {
 	response := call(handler, "POST", "/api/leads/import", csvHeader+"Good,Lead,good@example.com,100,,VIC,,,\n")
 	if response.Code != 200 || !strings.Contains(response.Body.String(), `"imported":1`) {
 		t.Fatal("upload failed")
+	}
+}
+
+type failedReader struct{}
+
+func (failedReader) Read(_ []byte) (int, error) { return 0, errors.New("read failed") }
+
+func TestImportReadFailureKeepsProgress(t *testing.T) {
+	t.Parallel()
+	store := openStore(t)
+	input := io.MultiReader(strings.NewReader(csvHeader+"Good,Lead,good@example.com,100,,VIC,,,\n"), failedReader{})
+	result, err := store.Import(t.Context(), input)
+	if err == nil || result.Imported != 1 {
+		t.Fatal("read failure must return committed progress")
+	}
+}
+
+func TestUploadLimit(t *testing.T) {
+	t.Parallel()
+	store := openStore(t)
+	handler := leads.Handler(store, nil)
+	const limit = 10 << 20
+	response := call(handler, "POST", "/api/leads/import", csvHeader+strings.Repeat("x", limit))
+	if response.Code != 400 || !strings.Contains(response.Body.String(), `"result"`) {
+		t.Fatal("oversized upload must return a safe error and progress")
 	}
 }

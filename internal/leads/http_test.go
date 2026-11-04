@@ -20,8 +20,8 @@ func openStore(t *testing.T) *leads.Store {
 		t.Fatal("open store:", err)
 	}
 	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Error(err)
+		if closeErr := store.Close(); closeErr != nil {
+			t.Error(closeErr)
 		}
 	})
 	return store
@@ -36,7 +36,6 @@ func call(handler http.Handler, method, path, body string) *httptest.ResponseRec
 }
 
 func TestAPI(t *testing.T) {
-	t.Parallel()
 	store := openStore(t)
 	handler := leads.Handler(store, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("frontend")}})
 	response := call(handler, http.MethodGet, "/api/leads", "")
@@ -52,7 +51,8 @@ func TestAPI(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &saved); err != nil {
 		t.Fatal(err)
 	}
-	if saved.ID == 0 || saved.CreatedAt == "" || saved.State != "QLD" || saved.Vehicle == nil || saved.Vehicle.Year != nil {
+	if saved.ID == 0 || saved.CreatedAt == "" || saved.State != "QLD" || saved.Vehicle == nil ||
+		saved.Vehicle.Year != nil {
 		t.Fatal("incorrect saved metadata or optional fields")
 	}
 	response = call(handler, http.MethodGet, "/api/leads", "")
@@ -66,12 +66,18 @@ func TestAPI(t *testing.T) {
 	if response.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("PII must not be cached")
 	}
-	response = call(handler, http.MethodPost, "/api/leads", strings.ReplaceAll(input, "ZOE@example.com", "zoe@example.com"))
+	response = call(
+		handler,
+		http.MethodPost,
+		"/api/leads",
+		strings.ReplaceAll(input, "ZOE@example.com", "zoe@example.com"),
+	)
 	if response.Code != http.StatusConflict {
 		t.Fatal("expected case-insensitive duplicate conflict")
 	}
 	response = call(handler, http.MethodPost, "/api/leads", `{}`)
-	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), `"finance_amount"`) {
+	if response.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(response.Body.String(), `"finance_amount"`) {
 		t.Fatal("missing field errors")
 	}
 	for index, body := range []string{`{`, `null`, `[]`, `{} {}`, `{"finance_amount":"abc"}`, `{"unknown":1}`, `{"vehicle":{"year":2020.5}}`} {
@@ -81,7 +87,13 @@ func TestAPI(t *testing.T) {
 			}
 		})
 	}
-	if result := call(handler, http.MethodGet, "/", ""); result.Code != http.StatusOK || result.Body.String() != "frontend" {
+	if result := call(
+		handler,
+		http.MethodGet,
+		"/",
+		"",
+	); result.Code != http.StatusOK ||
+		result.Body.String() != "frontend" {
 		t.Fatal("frontend not served")
 	}
 	if result := call(handler, http.MethodGet, "/api/missing", ""); result.Code != http.StatusNotFound {
