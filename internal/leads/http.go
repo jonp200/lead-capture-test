@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -14,10 +15,10 @@ import (
 
 const errorKey = "error"
 
-// Handler serves the API and compiled frontend without logging request data or PII.
-func Handler(store *Store, assets fs.FS) http.Handler {
+// Handler serves the API and compiled frontend with PII-free operational logs.
+func Handler(store *Store, assets fs.FS, logger *slog.Logger) http.Handler {
 	router := gin.New()
-	router.Use(safeRecovery)
+	router.Use(requestLogger(logger), safeRecovery(logger))
 	router.GET("/api/leads", store.listHTTP)
 	router.POST("/api/leads", store.addHTTP)
 	router.POST("/api/leads/import", store.importHTTP)
@@ -33,14 +34,35 @@ func Handler(store *Store, assets fs.FS) http.Handler {
 	return router
 }
 
-func safeRecovery(ctx *gin.Context) {
-	defer func() {
-		if recover() != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{errorKey: "internal server error"})
+func requestLogger(logger *slog.Logger) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		start := time.Now()
+		ctx.Next()
+		route := ctx.FullPath()
+		if route == "" {
+			route = "unmatched"
 		}
-	}()
-	ctx.Header("Cache-Control", "no-store")
-	ctx.Next()
+		level := slog.LevelInfo
+		if ctx.Writer.Status() >= http.StatusInternalServerError {
+			level = slog.LevelError
+		}
+		logger.Log(ctx.Request.Context(), level, "HTTP request completed",
+			"method", ctx.Request.Method, "route", route, "status", ctx.Writer.Status(),
+			"duration_ms", float64(time.Since(start))/float64(time.Millisecond))
+	}
+}
+
+func safeRecovery(logger *slog.Logger) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		defer func() {
+			if recover() != nil {
+				logger.ErrorContext(ctx.Request.Context(), "HTTP handler panic recovered")
+				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{errorKey: "internal server error"})
+			}
+		}()
+		ctx.Header("Cache-Control", "no-store")
+		ctx.Next()
+	}
 }
 
 func (store *Store) listHTTP(ctx *gin.Context) {
@@ -74,7 +96,7 @@ func (store *Store) addHTTP(ctx *gin.Context) {
 	}
 	saved, err := store.Add(ctx.Request.Context(), *lead)
 	if errors.Is(err, ErrDuplicateEmail) {
-		ctx.JSON(http.StatusConflict, gin.H{"errors": gin.H{"email": "already exists"}})
+		ctx.JSON(http.StatusConflict, gin.H{"errors": gin.H{"email": "Email already exists"}})
 		return
 	}
 	if err != nil {

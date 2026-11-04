@@ -1,4 +1,5 @@
 BIN := bin/leads
+FILE ?= leads.csv
 
 .PHONY: build test dev dev-api dev-web web-build import clean
 
@@ -18,16 +19,16 @@ build: web-build
 test: web-build
 	go test ./...
 
-## import: build, then import leads.csv into the database
+## import: build, then import FILE into the database
 import: build
-	./$(BIN) import leads.csv
+	./$(BIN) import "$(FILE)"
 
 ## dev: run the Go API (:8080) and the Vite dev server (:5173) together
 dev: web-build
 	$(MAKE) -j2 dev-api dev-web
 
 dev-api:
-	go run . serve
+	LEADS_ENV=development go run . serve
 
 dev-web: web/node_modules
 	cd web && npm run dev

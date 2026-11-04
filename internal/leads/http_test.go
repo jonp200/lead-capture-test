@@ -3,6 +3,7 @@ package leads_test
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -37,7 +38,7 @@ func call(handler http.Handler, method, path, body string) *httptest.ResponseRec
 
 func TestAPI(t *testing.T) {
 	store := openStore(t)
-	handler := leads.Handler(store, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("frontend")}})
+	handler := leads.Handler(store, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("frontend")}}, testLogger())
 	response := call(handler, http.MethodGet, "/api/leads", "")
 	if response.Code != http.StatusOK || response.Body.String() != "[]" {
 		t.Fatal("empty list must be []")
@@ -99,6 +100,10 @@ func TestAPI(t *testing.T) {
 	if result := call(handler, http.MethodGet, "/api/missing", ""); result.Code != http.StatusNotFound {
 		t.Fatal("unknown API should return 404")
 	}
+}
+
+func testLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
 }
 
 func TestPersistence(t *testing.T) {

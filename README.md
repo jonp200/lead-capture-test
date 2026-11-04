@@ -130,6 +130,30 @@ Override these with `LEADS_ADDR` and `LEADS_DB`. Build the frontend before direc
 commands so `web/dist` exists for embedding. The compiled binary needs no external
 frontend files.
 
+Backend logs use Go's structured `slog` logger. Set `LEADS_ENV=development` to write
+text records to stderr (`make dev` does this automatically). An unset `LEADS_ENV`
+uses production logging: JSON records appended to `logs/leads.log`. Any value other
+than `development` also uses production logging, including `production`.
+`LEADS_LOG_FILE` overrides the file path. Parent directories are created automatically.
+Startup fails if the production log file cannot be opened. Both `serve` and `import`
+use this configuration. HTTP logs contain method, matched route, status and duration;
+request bodies, query strings, headers and raw error details are excluded.
+
+For example, in PowerShell:
+
+```powershell
+$env:LEADS_ENV = 'production'
+$env:LEADS_LOG_FILE = 'logs/leads.log'
+./bin/leads.exe serve
+```
+
+Log files append across restarts and rotate automatically at 10 MiB. Up to five
+rotated files are retained for at most 14 days, with gzip compression. Cleanup runs
+when logs are opened or rotated. The 10 MiB limit suits this small application's
+operational logs; the active file plus five backups use about 60 MiB before compression.
+Each running process must use its own log path (for example, set a separate
+`LEADS_LOG_FILE` when running a CLI import alongside the server).
+
 ## Submitting
 
 Push your work to a repository we can read (or send us a zip), including `NOTES.md`. Please commit as you go rather than in one final commit: we're interested in how you got there.

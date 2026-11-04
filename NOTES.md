@@ -9,11 +9,12 @@
 - CSV upload uses `POST /api/leads/import` with the raw file as a `text/csv` body, limited to 10 MiB. JSON bodies are limited to 64 KiB and must contain one object. Unknown JSON fields are rejected. Read-only metadata on input is ignored and regenerated.
 - The UI includes loading, empty, network error, success and import review states, native dialog keyboard handling, labeled controls, field errors, name/email search, state filtering and name sorting. Server validation is authoritative; native browser constraints catch common input errors.
 - Request bodies, email addresses, file names, raw CSV records and database errors are not logged. API responses use `Cache-Control: no-store`. The app binds to loopback by default. This is a local staff prototype, without authentication or encrypted database storage.
+- Backend operational logs use `log/slog`. Only explicit `LEADS_ENV=development` selects text console logging; otherwise JSON records append to `LEADS_LOG_FILE` (default `logs/leads.log`). Startup fails if the file cannot be opened. Lumberjack rotates at 10 MiB, keeps up to five backups for 14 days, and compresses backups with gzip. Cleanup runs on open/rotation. Each concurrent process needs its own log path.
 - The existing strict lint rules remain enabled. The only path exclusion added is third-party Go source inside `web/node_modules`; CLI file access has a specific suppression because accepting a user-selected path is its intended behavior.
 
 ## AI suggestion rejected
 
-Using `gin.Default()` would provide convenient request logs and panic recovery. I rejected that option during AI-assisted review: recovery diagnostics can include request headers, which conflicts with the PII requirement. The application instead uses Gin without request logging and recovery with a fixed public error message. This decision was made by the coding agent; it is not a claim that a human reviewer rejected a suggestion.
+Using `gin.Default()` would provide convenient request logs and panic recovery. I rejected that option during AI-assisted review: recovery diagnostics can include request headers, which conflicts with the PII requirement. The application instead uses custom structured request logging limited to method, route template, status and duration, and recovery with a fixed public error message. This decision was made by the coding agent; it is not a claim that a human reviewer rejected a suggestion.
 
 ## Verification
 
@@ -41,6 +42,7 @@ Pop-Location
 $env:CGO_ENABLED = '0'
 go build -o bin/leads.exe .
 ./bin/leads.exe import leads.csv
+$env:LEADS_ENV = 'development' # omit to use production JSON file logging
 ./bin/leads.exe serve
 ```
 

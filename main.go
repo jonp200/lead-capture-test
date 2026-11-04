@@ -6,25 +6,47 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"leadcapture/internal/leads"
 	"leadcapture/web"
 )
 
 func main() {
-	if err := run(); err != nil {
-		// Underlying errors can contain PII or file paths; print safe messages only.
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
+	os.Exit(execute())
 }
 
-func run() error {
+func execute() int {
+	logger, closeLog, err := setupLogging(os.Getenv("LEADS_ENV"), os.Getenv("LEADS_LOG_FILE"))
+	if err != nil {
+		slog.New(slog.NewJSONHandler(os.Stderr, nil)).Error("logging setup failed", "error", err.Error())
+		return 1
+	}
+	// Always suppress Gin's unstructured debug output, including route registration.
+	// LEADS_ENV independently selects slog console logging or production file logging.
+	gin.SetMode(gin.ReleaseMode)
+	exitCode := 0
+	if runErr := run(logger); runErr != nil {
+		// run returns safe messages; underlying errors can contain PII or file paths.
+		logger.Error("command failed", "error", runErr.Error())
+		exitCode = 1
+	}
+	if closeErr := closeLog(); closeErr != nil {
+		slog.New(slog.NewJSONHandler(os.Stderr, nil)).Error("could not close log file")
+		exitCode = 1
+	}
+	return exitCode
+}
+
+func run(logger *slog.Logger) error {
 	if len(os.Args) < 2 || (os.Args[1] != "serve" && os.Args[1] != "import") {
 		return errors.New("usage: leads serve | leads import <file.csv>")
 	}
@@ -40,33 +62,35 @@ func run() error {
 	}
 	defer store.Close()
 	if os.Args[1] == "import" {
-		return importFile(ctx, store)
+		return importFile(ctx, store, logger)
 	}
-	return serve(ctx, store)
+	return serve(ctx, store, logger)
 }
 
-func importFile(ctx context.Context, store *leads.Store) error {
+func importFile(ctx context.Context, store *leads.Store, logger *slog.Logger) error {
 	const importArgCount = 3
 	if len(os.Args) != importArgCount {
 		return errors.New("usage: leads import <file.csv>")
 	}
-	file, err := os.Open(os.Args[2]) //nolint:gosec // The local CLI intentionally accepts a user-selected file path.
+	name := os.Args[2]
+	logger.InfoContext(ctx, fmt.Sprintf("import file [%v]", name))
+	file, err := os.Open(name) //nolint:gosec // The local CLI intentionally accepts a user-selected file path.
 	if err != nil {
 		return errors.New("could not open CSV file")
 	}
 	defer file.Close()
 	result, err := store.Import(ctx, file)
 	for _, rejection := range result.Rejected {
-		fmt.Fprintf(os.Stderr, "line %d: %v\n", rejection.Line, rejection.Errors)
+		logger.WarnContext(ctx, "CSV row rejected", "line", rejection.Line, "errors", rejection.Errors)
 	}
-	fmt.Fprintf(os.Stdout, "Imported %d; rejected %d\n", result.Imported, len(result.Rejected))
+	logger.InfoContext(ctx, "CSV import processed", "imported", result.Imported, "rejected", len(result.Rejected))
 	if err != nil {
 		return errors.New("import stopped: check headers, file format, and database availability")
 	}
 	return nil
 }
 
-func serve(ctx context.Context, store *leads.Store) error {
+func serve(ctx context.Context, store *leads.Store, logger *slog.Logger) error {
 	assets, err := fs.Sub(web.Assets, "dist")
 	if err != nil {
 		return errors.New("could not load frontend")
@@ -77,7 +101,8 @@ func serve(ctx context.Context, store *leads.Store) error {
 	}
 	const readTimeout = 15 * time.Second
 	const idleTimeout = 60 * time.Second
-	server := &http.Server{Addr: addr, Handler: leads.Handler(store, assets),
+	server := &http.Server{Addr: addr, Handler: leads.Handler(store, assets, logger),
+		ErrorLog:          log.New(serverLogWriter{logger: logger}, "", 0),
 		ReadHeaderTimeout: readTimeout, ReadTimeout: readTimeout, WriteTimeout: idleTimeout, IdleTimeout: idleTimeout}
 	done := make(chan struct{})
 	go func() {
@@ -86,13 +111,15 @@ func serve(ctx context.Context, store *leads.Store) error {
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), readTimeout)
 		defer cancel()
 		if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
+			logger.ErrorContext(ctx, "HTTP server graceful shutdown failed")
 			_ = server.Close()
 		}
 	}()
-	fmt.Fprintf(os.Stdout, "Lead capture listening on %s\n", addr)
+	logger.InfoContext(ctx, "HTTP server starting", "address", addr)
 	err = server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		<-done
+		logger.InfoContext(ctx, "HTTP server stopped")
 		return nil
 	}
 	return errors.New("HTTP server could not start")

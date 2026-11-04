@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/gin-gonic/gin v1.12.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.61.1
 )
 

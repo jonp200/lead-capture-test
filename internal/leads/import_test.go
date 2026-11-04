@@ -79,7 +79,7 @@ func TestImportHeadersAndMultiline(t *testing.T) {
 func TestImportUpload(t *testing.T) {
 	t.Parallel()
 	store := openStore(t)
-	handler := leads.Handler(store, nil)
+	handler := leads.Handler(store, nil, testLogger())
 	response := call(handler, "POST", "/api/leads/import", csvHeader+"Good,Lead,good@example.com,100,,VIC,,,\n")
 	if response.Code != 200 || !strings.Contains(response.Body.String(), `"imported":1`) {
 		t.Fatal("upload failed")
@@ -103,7 +103,7 @@ func TestImportReadFailureKeepsProgress(t *testing.T) {
 func TestUploadLimit(t *testing.T) {
 	t.Parallel()
 	store := openStore(t)
-	handler := leads.Handler(store, nil)
+	handler := leads.Handler(store, nil, testLogger())
 	const limit = 10 << 20
 	response := call(handler, "POST", "/api/leads/import", csvHeader+strings.Repeat("x", limit))
 	if response.Code != 400 || !strings.Contains(response.Body.String(), `"result"`) {
