@@ -1,1 +1,20 @@
 @import 'tailwindcss';
+@layer base {
+  body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  button, summary { cursor: pointer; }
+  button:disabled { cursor: wait; opacity: .6; }
+  label { @apply mb-1.5 block text-xs font-medium text-slate-600; }
+  input:not([type='file']), select { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/15; }
+  [aria-invalid='true'] { @apply border-red-500; }
+  th { @apply px-5 py-3 font-semibold; }
+  td { @apply px-5 py-4; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-teal-700; }
+}
+@layer components {
+  .primary { @apply inline-flex items-center justify-center rounded-lg bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-900; }
+  .secondary { @apply mb-0 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50; }
+  .card { @apply rounded-xl border border-slate-200 bg-white shadow-xs; }
+  .stat-label { @apply text-xs font-medium text-slate-500; }
+  .stat-value { @apply mt-3 text-2xl font-semibold tracking-tight text-slate-900; }
+  .field-error { @apply mt-1 text-xs text-red-700; }
+}
