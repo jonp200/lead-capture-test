@@ -39,3 +39,8 @@ go.work.sum
 # Output files
 dist/
 *.backup
+bin/
+*.db
+*.db-shm
+*.db-wal
+web/.eslintcache
