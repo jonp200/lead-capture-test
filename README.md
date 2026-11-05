@@ -111,49 +111,6 @@ make test      # run the Go tests
 - `409` on a duplicate email.
 - Sorting.
 
-## Implementation
-
-The API and Vue interface are implemented. See [NOTES.md](NOTES.md) for decisions,
-verification, limitations and Windows commands without GNU make.
-
-- `GET /api/leads` returns the saved leads, newest first.
-- `POST /api/leads` accepts the lead JSON contract above; duplicate email returns
-  `409` with `errors.email`.
-- `POST /api/leads/import` accepts a raw `text/csv` request body (maximum 10 MiB)
-  and returns `{ "imported": 36, "rejected": [{ "line": 25, "errors": { "state": "..." } }] }`.
-  Earlier accepted rows remain saved if an import stops; an error response includes
-  `result` with that progress. Correct rejected rows in the source file and upload again.
-
-The browser provides CSV upload, rejection review, adding leads, search, state filtering
-and sorting. By default the server listens on `127.0.0.1:8080` and saves to `leads.db`.
-Override these with `LEADS_ADDR` and `LEADS_DB`. Build the frontend before direct Go
-commands so `web/dist` exists for embedding. The compiled binary needs no external
-frontend files.
-
-Backend logs use Go's structured `slog` logger. Set `LEADS_ENV=development` to write
-text records to stderr (`make dev` does this automatically). An unset `LEADS_ENV`
-uses production logging: JSON records appended to `logs/leads.log`. Any value other
-than `development` also uses production logging, including `production`.
-`LEADS_LOG_FILE` overrides the file path. Parent directories are created automatically.
-Startup fails if the production log file cannot be opened. Both `serve` and `import`
-use this configuration. HTTP logs contain method, matched route, status and duration;
-request bodies, query strings, headers and raw error details are excluded.
-
-For example, in PowerShell:
-
-```powershell
-$env:LEADS_ENV = 'production'
-$env:LEADS_LOG_FILE = 'logs/leads.log'
-./bin/leads.exe serve
-```
-
-Log files append across restarts and rotate automatically at 10 MiB. Up to five
-rotated files are retained for at most 14 days, with gzip compression. Cleanup runs
-when logs are opened or rotated. The 10 MiB limit suits this small application's
-operational logs; the active file plus five backups use about 60 MiB before compression.
-Each running process must use its own log path (for example, set a separate
-`LEADS_LOG_FILE` when running a CLI import alongside the server).
-
 ## Submitting
 
 Push your work to a repository we can read (or send us a zip), including `NOTES.md`. Please commit as you go rather than in one final commit: we're interested in how you got there.
