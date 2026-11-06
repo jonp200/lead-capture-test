@@ -106,10 +106,10 @@ make test      # run the Go tests
 
 ## Stretch goals (optional)
 
-- Filter by state.
-- Client-side validation that matches the server rules.
-- `409` on a duplicate email.
-- Sorting.
+- [x] Filter by state.
+- [x] Client-side validation that matches the server rules.
+- [x] `409` on a duplicate email.
+- [x] Sorting.
 
 ## Submitting
 
